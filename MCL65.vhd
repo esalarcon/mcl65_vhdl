@@ -4,10 +4,7 @@ use ieee.numeric_std.all;
 
 entity MCL65 is 
    Port (   CORE_CLK    :  in    STD_LOGIC;
-            CLK0        :  in    STD_LOGIC;
-            CLK1        :  out   STD_LOGIC;
-            CLK2        :  out   STD_LOGIC;
-            RESET_n     :  in    STD_LOGIC;
+            RESET       :  in    STD_LOGIC;
             NMI_n       :  in    STD_LOGIC;
             IRQ_n       :  in    STD_LOGIC;
             SO          :  in    STD_LOGIC;
@@ -17,8 +14,7 @@ entity MCL65 is
             A           :  out   STD_LOGIC_VECTOR(15 downto 0);
             din         :  in    STD_LOGIC_VECTOR(7 downto 0);
             dout        :  out   STD_LOGIC_VECTOR(7 downto 0);
-            DIR0        :  out   STD_LOGIC;
-            DIR1        :  out   STD_LOGIC);
+            WR          :  out   STD_LOGIC);
 end MCL65;
    
             
@@ -27,8 +23,8 @@ architecture Behavioral of MCL65 is
    signal   add_overflow8  :  std_logic := '0';
    signal   clk1_out_int   :  std_logic := '0';
    signal   clk2_out_int   :  std_logic := '0';
-   signal   clk0_int_d1    :  std_logic := '0';
-   signal   clk0_int_d2    :  std_logic := '0';
+   signal   clk0_int_d1    :  std_logic := '1';
+   signal   clk0_int_d2    :  std_logic := '1';
    signal   clk0_int_d3    :  std_logic := '0';
    signal   clk0_int_d4    :  std_logic := '0';
    signal   reset_n_d1     :  std_logic := '0';
@@ -53,15 +49,8 @@ architecture Behavioral of MCL65 is
    signal   ready_int_d1   :  std_logic := '0';
    signal   ready_int_d2   :  std_logic := '0';
    signal   ready_int_d3   :  std_logic := '0';
-   signal   dataout_enable :  std_logic := '0';
-   
-   signal   flag_n         :  std_logic;
-   signal   flag_v         :  std_logic;
-   signal   flag_b         :  std_logic;
-   signal   flag_d         :  std_logic;
+   signal   dataout_enable :  std_logic := '0';  
    signal   flag_i         :  std_logic;
-   signal   flag_z         :  std_logic;
-   signal   flag_c         :  std_logic;
    signal   nmi_debounce   :  std_logic;
    signal   so_debounce    :  std_logic;
    signal   opcode_jump_call: std_logic;
@@ -83,7 +72,6 @@ architecture Behavioral of MCL65 is
    signal   address_out    :  std_logic_vector(15 downto 0) := (others => '0');
    signal   system_output  :  std_logic_vector( 4 downto 0) := "00001";
    signal   data_out       :  std_logic_vector( 7 downto 0) := (others => '0');
-   signal   data_in_d1     :  std_logic_vector( 7 downto 0) := (others => '0');
    signal   data_in_d2     :  std_logic_vector( 7 downto 0) := (others => '0');
    signal   register_flags :  std_logic_vector( 7 downto 0) := (others => '0'); 
    signal   a_out_int      :  std_logic_vector(15 downto 0) := (others => '0');    
@@ -134,21 +122,22 @@ mcode_2Kx32:   microcode_rom
 --
 ------------------------------------------------------------------------
    A                 <= a_out_int;
-   --D                 <= d_out_int when dataout_enable = '1' else (others => 'Z');
    dout              <= d_out_int;
-   DIR0              <= dataout_enable;
-   DIR1              <= dataout_enable;
-   CLK1              <= clk1_out_int;
-   CLK2              <= clk2_out_int;
+   --DIR0              <= dataout_enable;
+   --DIR1              <= dataout_enable;
    so_debounce       <= system_output(4);
    nmi_debounce      <= system_output(3);
-   --dataout_enable    <= system_output(2);
    sync_int          <= system_output(1);
    rdwr_n_int        <= system_output(0);
    SYNC              <= sync_int_d1;
    RDWR_n            <= rdwr_n_int_d1;
+   WR                <= dataout_enable    and 
+                        (not rdwr_n_int)  and
+                        clk0_int_d4       and
+                        (not clk0_int_d3);
    
---// Microcode ROM opcode decoder
+   
+   --// Microcode ROM opcode decoder
    opcode_type       <= rom_data(30 downto 28);
    opcode_dst_sel    <= rom_data(27 downto 24);
    opcode_op0_sel    <= rom_data(23 downto 20);
@@ -199,7 +188,7 @@ mcode_2Kx32:   microcode_rom
   jump_boolean <= '1' when opcode_jump_cond = x"0" else                                                                          --// Unconditional jump
                   '1' when opcode_jump_cond = x"1" and alu_last_result /= x"0000"                                          else  --// Jump Not Zero
                   '1' when opcode_jump_cond = x"2" and alu_last_result = x"0000"                                           else  --// Jump Zero
-                  '1' when opcode_jump_cond = x"3" and clk0_int_d2 = '0'                                                   else  --// Jump backwards until CLK=1
+                  '1' when opcode_jump_cond = x"3" and clk0_int_d1 = '0'                                                   else  --// Jump backwards until CLK=1
                   '1' when opcode_jump_cond = x"4" and rdwr_n_int_d1 = '0' and clk0_int_d2 = '1'                           else  --// Jump backwards until CLK=0 for write cycles. READY ignored
                   '1' when opcode_jump_cond = x"4" and rdwr_n_int_d1 = '1' and (clk0_int_d2 = '1' or ready_int_d3 = '0')   else  --// Jump backwards until CLK=0 for read cycles with READY active
                   '0';
@@ -214,13 +203,13 @@ mcode_2Kx32:   microcode_rom
    system_status(1)           <= '0';
    system_status(0)           <= add_carry8;
 
-   flag_n                     <= register_flags(7);
-   flag_v                     <= register_flags(6);
-   flag_b                     <= register_flags(4);
-   flag_d                     <= register_flags(3);
-   flag_i                     <= register_flags(2);
-   flag_z                     <= register_flags(1);
-   flag_c                     <= register_flags(0);
+--   flag_n                     <= register_flags(7);
+--   flag_v                     <= register_flags(6);
+--   flag_b                     <= register_flags(4);
+--   flag_d                     <= register_flags(3);
+     flag_i                     <= register_flags(2);
+--   flag_z                     <= register_flags(1);
+--   flag_c                     <= register_flags(0);
 
    --// Microsequencer ALU Operations
    --// ------------------------------------------
@@ -244,7 +233,7 @@ mcode_2Kx32:   microcode_rom
    --// Generate 16-bit full adder 
    carry(0) <= '0';
    adder: for i in 0 to 15 generate
-      gadd: adder_out(i)   <= operand0(i) xor operand1(i) xor carry(i);
+      gadd: adder_out(i)   <=  operand0(i) xor operand1(i) xor carry(i);
       gcry: carry(i+1)     <= (operand0(i) and operand1(i)) or
                               (operand0(i) and carry(i))    or
                               (operand1(i) and carry(i));
@@ -254,17 +243,17 @@ mcode_2Kx32:   microcode_rom
    --//
    --// Microsequencer
    --//
-   --//------------------------------------------------------------------------------------------
+   --//------------------------------------------------------------------------------------------ 
    process(CORE_CLK)
    begin
       if(rising_edge(CORE_CLK)) then
-         clk0_int_d1    <= CLK0;
+         clk0_int_d1    <= clk0_int_d4;
          clk0_int_d2    <= clk0_int_d1;
          clk0_int_d3    <= clk0_int_d2;
          clk0_int_d4    <= clk0_int_d3;
-         clk1_out_int   <= not clk0_int_d3;
-         clk2_out_int   <= clk0_int_d2;
-         reset_n_d1     <= RESET_n;
+
+         
+         reset_n_d1     <= not RESET;
          reset_n_d2     <= reset_n_d1;
          ready_int_d1   <= READY;
          ready_int_d2   <= ready_int_d1;
@@ -275,23 +264,25 @@ mcode_2Kx32:   microcode_rom
          a_out_int      <= address_out;
          d_out_int      <= data_out;
          irq_d1         <= not IRQ_n;
-         --data_in_d1     <= D;   
-         data_in_d1     <= din;
+         --data_in_d1     <= din;
+         irq_gated      <= irq_d4 and (not flag_i);              
+
 
          --// Store data and sample IRQ_n on falling edge of clk      
          if (clk0_int_d3='1' and clk0_int_d2='0') then    
-            data_in_d2  <= data_in_d1;       
+            data_in_d2  <= din; --data_in_d1;          
             irq_d2      <= irq_d1;
             irq_d3      <= irq_d2;
             irq_d4      <= irq_d3;
          end if;
-         irq_gated <= irq_d4 and (not flag_i);              
-
+         
+         
          if (rdwr_n_int_d1='0' and clk0_int_d4='1') then
             dataout_enable <= '1';
          elsif (rdwr_n_int_d2='0' and  rdwr_n_int_d1='1') then
             dataout_enable <= '0';
          end if;
+         
          nmi_n_d1 <= NMI_n;
          nmi_n_d2 <= nmi_n_d1;
          nmi_n_d3 <= nmi_n_d2;       
