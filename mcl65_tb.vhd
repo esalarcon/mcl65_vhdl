@@ -23,7 +23,9 @@ ARCHITECTURE behavior OF mcl65_tb IS
          RDWR_n : OUT  std_logic;
          READY : IN  std_logic;
          A : OUT  std_logic_vector(15 downto 0);
-         D : INOUT  std_logic_vector(7 downto 0);
+         --D : INOUT  std_logic_vector(7 downto 0);
+         DIN   :  IN std_logic_vector(7 downto 0);
+         DOUT  : OUT std_logic_vector(7 downto 0);
          DIR0 : OUT  std_logic;
          DIR1 : OUT  std_logic
         );
@@ -38,10 +40,8 @@ ARCHITECTURE behavior OF mcl65_tb IS
    signal IRQ_n : std_logic := '1';
    signal SO : std_logic := '1';
    signal READY : std_logic := '1';
-
-	--BiDirs
-   signal D : std_logic_vector(7 downto 0)   := (others =>'0');
-
+   signal DIN  :  std_logic_vector(7 downto 0) := x"AA";
+   
  	--Outputs
    signal CLK1 : std_logic;
    signal CLK2 : std_logic;
@@ -50,6 +50,7 @@ ARCHITECTURE behavior OF mcl65_tb IS
    signal A : std_logic_vector(15 downto 0);
    signal DIR0 : std_logic;
    signal DIR1 : std_logic;
+   signal DOUT :  std_logic_vector(7 downto 0);
 
    -- Clock period definitions
    constant CORE_CLK_period : time := 10 ns;
@@ -70,7 +71,8 @@ BEGIN
           RDWR_n => RDWR_n,
           READY => READY,
           A => A,
-          D => D,
+          DIN => DIN,
+          DOUT => DOUT,
           DIR0 => DIR0,
           DIR1 => DIR1
         );

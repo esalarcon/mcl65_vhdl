@@ -15,7 +15,8 @@ entity MCL65 is
             RDWR_n      :  out   STD_LOGIC;
             READY       :  in    STD_LOGIC;
             A           :  out   STD_LOGIC_VECTOR(15 downto 0);
-            D           :  inout STD_LOGIC_VECTOR(7 downto 0);
+            din         :  in    STD_LOGIC_VECTOR(7 downto 0);
+            dout        :  out   STD_LOGIC_VECTOR(7 downto 0);
             DIR0        :  out   STD_LOGIC;
             DIR1        :  out   STD_LOGIC);
 end MCL65;
@@ -133,7 +134,8 @@ mcode_2Kx32:   microcode_rom
 --
 ------------------------------------------------------------------------
    A                 <= a_out_int;
-   D                 <= d_out_int when dataout_enable = '1' else (others => 'Z');
+   --D                 <= d_out_int when dataout_enable = '1' else (others => 'Z');
+   dout              <= d_out_int;
    DIR0              <= dataout_enable;
    DIR1              <= dataout_enable;
    CLK1              <= clk1_out_int;
@@ -273,7 +275,8 @@ mcode_2Kx32:   microcode_rom
          a_out_int      <= address_out;
          d_out_int      <= data_out;
          irq_d1         <= not IRQ_n;
-         data_in_d1     <= D;   
+         --data_in_d1     <= D;   
+         data_in_d1     <= din;
 
          --// Store data and sample IRQ_n on falling edge of clk      
          if (clk0_int_d3='1' and clk0_int_d2='0') then    
